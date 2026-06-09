@@ -377,28 +377,42 @@
         border-radius: 14px;
         background: var(--panel2);
         padding: 8px;
+
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+        gap: 8px;
+        align-content: start;
       }
 
       .train-item {
         display: flex;
         align-items: center;
         gap: 10px;
-        padding: 8px 10px;
-        border-radius: 10px;
+        padding: 10px 12px;
+        border-radius: 12px;
+        min-width: 0;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        cursor: pointer;
+        user-select: none;
+        transition:
+          background 0.15s ease,
+          border-color 0.15s ease;
       }
 
       .train-item:hover {
-        background: var(--row-hover);
-      }
-      .train-item input {
-        transform: translateY(1px);
+        background: #eef4ff;
+        border-color: #c7d7fe;
       }
 
-      .train-item label {
+      .train-item input {
+        transform: translateY(1px);
+        pointer-events: none;
+      }
+
+      .train-item span {
         font-weight: 700;
         font-size: 13px;
-        cursor: pointer;
-        user-select: none;
       }
 
       .results {
@@ -615,6 +629,11 @@
         display: none !important;
       }
 
+      .panel.full-width {
+        max-width: 1500px;
+        margin: 0 auto 20px;
+      }
+
       @media (max-width: 1180px) {
         .layout {
           grid-template-columns: 1fr;
@@ -649,21 +668,59 @@
   <body>
     <div class="shell">
       <section class="hero">
-        <div class="card hero-card">
-          <span class="badge">Operations analytics</span>
-          <h1>Train Slip Ratio Predictor</h1>
-          <p class="subtitle">
-            Upload slip and docking CSVs, choose the trains to include, set the
-            alert threshold, and run a weighted-history forecast for D, D+1, and
-            D+2.
-          </p>
-          <div class="actions">
-            <button id="runBtn" class="btn btn-primary" type="button">
-              Run prediction
-            </button>
-            <button id="downloadBtn" class="btn btn-secondary" type="button">
-              Download CSV
-            </button>
+        <div
+          class="card hero-card"
+          style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 24px"
+        >
+          <div>
+            <span class="badge">Operations analytics</span>
+            <h1>Train Slip Ratio Predictor</h1>
+            <p class="subtitle">
+              Upload slip and docking CSVs, choose the trains to include, set
+              the alert threshold, and run a weighted-history forecast for D,
+              D+1, and D+2.
+            </p>
+            <div class="actions">
+              <button id="runBtn" class="btn btn-primary" type="button">
+                Run prediction
+              </button>
+              <button id="downloadBtn" class="btn btn-secondary" type="button">
+                Download CSV
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <h2
+              style="margin: 0 0 14px; font-size: 17px; letter-spacing: -0.02em"
+            >
+              Data sources
+            </h2>
+            <div class="grid">
+              <div class="filebox">
+                <div class="field"><label for="slipFile">Slip CSV</label></div>
+                <input type="file" id="slipFile" accept=".csv" />
+                <label class="file-trigger" for="slipFile"
+                  >Choose slip file</label
+                >
+                <div class="fname" id="slipFileName">
+                  Must contain Date, Train, Slip1, Slip2
+                </div>
+              </div>
+
+              <div class="filebox">
+                <div class="field">
+                  <label for="dockingFile">Docking CSV</label>
+                </div>
+                <input type="file" id="dockingFile" accept=".csv" />
+                <label class="file-trigger" for="dockingFile"
+                  >Choose docking file</label
+                >
+                <div class="fname" id="dockingFileName">
+                  Each row counts as 1 docking. Must contain Date, Train
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -690,37 +747,36 @@
         </aside>
       </section>
 
+      <section class="panel full-width">
+        <h2>Train control</h2>
+        <div class="grid">
+          <div class="row two">
+            <button
+              type="button"
+              id="selectAllTrainsBtn"
+              class="btn btn-secondary"
+            >
+              Select all
+            </button>
+            <button type="button" id="clearAllTrainsBtn" class="btn btn-ghost">
+              Clear all
+            </button>
+          </div>
+          <div class="help">
+            Uncheck trains to exclude them from the forecast. If a train has no
+            data in the selected period at all, it will not appear in the train
+            list below.
+          </div>
+          <div id="trainList" class="trains"></div>
+          <div class="chiprow">
+            <span class="chip">Weighted history</span>
+            <span class="chip">Threshold-driven alerts</span>
+          </div>
+        </div>
+      </section>
+
       <section class="layout">
         <aside class="sidebar">
-          <section class="panel">
-            <h2>Data sources</h2>
-            <div class="grid">
-              <div class="filebox">
-                <div class="field"><label for="slipFile">Slip CSV</label></div>
-                <input type="file" id="slipFile" accept=".csv" />
-                <label class="file-trigger" for="slipFile"
-                  >Choose slip file</label
-                >
-                <div class="fname" id="slipFileName">
-                  Must contain Date, Train, Slip1, Slip2
-                </div>
-              </div>
-
-              <div class="filebox">
-                <div class="field">
-                  <label for="dockingFile">Docking CSV</label>
-                </div>
-                <input type="file" id="dockingFile" accept=".csv" />
-                <label class="file-trigger" for="dockingFile"
-                  >Choose docking file</label
-                >
-                <div class="fname" id="dockingFileName">
-                  Each row counts as 1 docking. Must contain Date, Train
-                </div>
-              </div>
-            </div>
-          </section>
-
           <section class="panel">
             <h2>Configuration</h2>
             <div class="grid">
@@ -743,12 +799,12 @@
                 <div class="field">Reference mode</div>
                 <div class="seg">
                   <button type="button" id="modeRollingBtn" class="active">
-                    Rolling
+                    Rolling Days
                   </button>
-                  <button type="button" id="modeCustomBtn">Custom</button>
                   <button type="button" id="modeAvailBtn">
                     Available points
                   </button>
+                  <button type="button" id="modeCustomBtn">Custom</button>
 
                   <select id="refMode" class="hidden" aria-hidden="true">
                     <option value="rolling">Previous N days before D</option>
@@ -770,7 +826,7 @@
 
               <div id="availableBox" class="row hidden">
                 <label class="field" for="availablePoints"
-                  >Available points</label
+                  >Available Points</label
                 >
                 <input type="number" id="availablePoints" min="1" value="7" />
                 <div class="help">
@@ -801,36 +857,10 @@
                 >
                 <input type="date" id="predictionDate" />
               </div>
-            </div>
-          </section>
 
-          <section class="panel">
-            <h2>Train control</h2>
-            <div class="grid">
-              <div class="row two">
-                <button
-                  type="button"
-                  id="selectAllTrainsBtn"
-                  class="btn btn-secondary"
-                >
-                  Select all
-                </button>
-                <button
-                  type="button"
-                  id="clearAllTrainsBtn"
-                  class="btn btn-ghost"
-                >
-                  Clear all
-                </button>
-              </div>
-              <div class="help">
-                Uncheck trains to exclude them from the forecast.
-              </div>
-              <div id="trainList" class="trains"></div>
-              <div class="chiprow">
-                <span class="chip">Weighted history</span>
-                <span class="chip">Threshold-driven alerts</span>
-              </div>
+              <button id="runBtnConfig" class="btn btn-primary" type="button">
+                Run prediction
+              </button>
             </div>
           </section>
         </aside>
@@ -839,7 +869,15 @@
           <div class="topbar">
             <div>
               <h2>Prediction results</h2>
-              <p>Sorted by highest predicted D+2 ratio, then D+1, then D.</p>
+              <p>
+                Sorted by highest predicted D+2 ratio, then D+1, then D.
+                <br /><br />Note that some trains may have missing data for
+                various reasons, such as overhaul. These trains will be marked
+                as "Insufficient Data" and will only use available data when
+                "Available Points" mode is selected. If the train did not have
+                any data within the period, that train will simply disappear
+                from the selection above.
+              </p>
             </div>
           </div>
 
@@ -974,7 +1012,7 @@
         updateStatusBar();
       });
 
-      document.getElementById("runBtn").addEventListener("click", () => {
+      function runPrediction() {
         if (!slipFileInput.files[0] || !dockingFileInput.files[0]) {
           alert("Please select both the slip file and docking file.");
           return;
@@ -1011,7 +1049,14 @@
         latestDates = result.dates;
         renderResults(result);
         updateStatusBar();
-      });
+      }
+
+      document
+        .getElementById("runBtn")
+        .addEventListener("click", runPrediction);
+      document
+        .getElementById("runBtnConfig")
+        .addEventListener("click", runPrediction);
 
       document.getElementById("downloadBtn").addEventListener("click", () => {
         if (!latestPredictionRows.length) {
@@ -1070,12 +1115,13 @@
 
         for (const train of trains) {
           const id = `train-${train.replace(/[^a-zA-Z0-9]/g, "_")}`;
-          const item = document.createElement("div");
+          const item = document.createElement("label");
           item.className = "train-item";
+          item.setAttribute("for", id);
           item.innerHTML = `
-          <input type="checkbox" id="${id}" value="${escapeHtmlAttr(train)}" ${current.has(train) ? "checked" : ""}>
-          <label for="${id}">${escapeHtml(train)}</label>
-        `;
+    <input type="checkbox" id="${id}" value="${escapeHtmlAttr(train)}" ${current.has(train) ? "checked" : ""}>
+    <span>${escapeHtml(train)}</span>
+  `;
           trainList.appendChild(item);
         }
 
@@ -1711,32 +1757,26 @@
         return `${v.toFixed(1)}%`;
       }
 
-      function formatCell(pred, actual, pct, slip, dock, note) {
-        const noteHtml = note
-          ? `<div class="note">${escapeHtml(note).replaceAll("\n", "<br>")}</div>`
-          : "";
-
-        if (actual === null) {
+      function formatCell(pred, actual, pct, slip, dock) {
+        if (actual == null) {
           return `
       <div class="metric">
         <div class="pred">${formatRatio(pred)}</div>
-        ${noteHtml}
         <div class="actual muted">No actual value yet</div>
       </div>
     `;
         }
 
-        const p = pct === null ? "n/a" : formatPct(pct);
-        const cls = pct === null ? "muted" : pct >= 0 ? "pos" : "neg";
+        const p = pct == null ? "n/a" : formatPct(pct);
+        const cls = pct == null ? "muted" : pct >= 0 ? "pos" : "neg";
         const extra =
-          slip !== null && dock !== null
+          slip != null && dock != null
             ? `Actual slips/docks: ${slip}/${dock}`
             : "";
 
         return `
     <div class="metric">
       <div class="pred">${formatRatio(pred)}</div>
-      ${noteHtml}
       <div class="actual">${formatRatio(actual)}${extra ? `<br>${escapeHtml(extra)}` : ""}</div>
       <div class="pct ${cls}">${p}</div>
     </div>
@@ -1752,14 +1792,13 @@
       }
 
       function formatTrainCell(row) {
-        const noteHtml =
-          row.Train === "TOTAL" || !row.ShortDataNote
-            ? ""
-            : `<div class="note">${escapeHtml(row.ShortDataNote).replaceAll("\n", "<br>")}</div>`;
+        const noteHtml = row.ShortDataNote
+          ? `<div class="note">${escapeHtml(row.ShortDataNote).replaceAll("\n", "<br>")}</div>`
+          : "";
 
         return `
     <div class="metric">
-      <div class="${getTrainCellClass(row)}">${escapeHtml(row.Train)}</div>
+      <div class="train-name ${getTrainCellClass(row)}">${escapeHtml(row.Train)}</div>
       ${noteHtml}
     </div>
   `;
@@ -1798,10 +1837,10 @@
           const note = row.Train === "TOTAL" ? "" : row.ShortDataNote;
           const tr = document.createElement("tr");
           tr.innerHTML = `
-            <td class="${getTrainCellClass(row)}">${escapeHtml(row.Train)}</td>
-            <td class="${getValueCellClass(row)}">${formatCell(row.PredD, row.ActualD, row.PctD, row.ActualSlipD, row.ActualDockD, note)}</td>
-            <td class="${getValueCellClass(row)}">${formatCell(row.PredD1, row.ActualD1, row.PctD1, row.ActualSlipD1, row.ActualDockD1, note)}</td>
-            <td class="${getValueCellClass(row)}">${formatCell(row.PredD2, row.ActualD2, row.PctD2, row.ActualSlipD2, row.ActualDockD2, note)}</td>
+            <td>${formatTrainCell(row)}</td>
+            <td class="${getValueCellClass(row)}">${formatCell(row.PredD, row.ActualD, row.PctD, row.ActualSlipD, row.ActualDockD)}</td>
+            <td class="${getValueCellClass(row)}">${formatCell(row.PredD1, row.ActualD1, row.PctD1, row.ActualSlipD1, row.ActualDockD1)}</td>
+            <td class="${getValueCellClass(row)}">${formatCell(row.PredD2, row.ActualD2, row.PctD2, row.ActualSlipD2, row.ActualDockD2)}</td>
             `;
           tbody.appendChild(tr);
         }
