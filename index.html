@@ -746,11 +746,18 @@
                     Rolling
                   </button>
                   <button type="button" id="modeCustomBtn">Custom</button>
+                  <button type="button" id="modeAvailBtn">
+                    Available points
+                  </button>
+
+                  <select id="refMode" class="hidden" aria-hidden="true">
+                    <option value="rolling">Previous N days before D</option>
+                    <option value="custom">Custom date range</option>
+                    <option value="available">
+                      Previous N available data points before D
+                    </option>
+                  </select>
                 </div>
-                <select id="refMode" class="hidden" aria-hidden="true">
-                  <option value="rolling">Previous N days before D</option>
-                  <option value="custom">Custom date range</option>
-                </select>
               </div>
 
               <div id="rollingBox" class="row">
@@ -758,6 +765,17 @@
                 <input type="number" id="rollingDays" min="1" value="7" />
                 <div class="help">
                   Uses the previous N days before D as the reference period.
+                </div>
+              </div>
+
+              <div id="availableBox" class="row hidden">
+                <label class="field" for="availablePoints"
+                  >Available points</label
+                >
+                <input type="number" id="availablePoints" min="1" value="7" />
+                <div class="help">
+                  Uses the previous N available train-day data points before D,
+                  rather than a fixed date span.
                 </div>
               </div>
 
@@ -901,6 +919,10 @@
       const trainStatus = document.getElementById("trainStatus");
 
       document
+        .getElementById("modeAvailBtn")
+        .addEventListener("click", () => setRefMode("available"));
+
+      document
         .getElementById("modeRollingBtn")
         .addEventListener("click", () => setRefMode("rolling"));
       document
@@ -1014,8 +1036,13 @@
         document
           .getElementById("modeCustomBtn")
           .classList.toggle("active", mode === "custom");
+        document
+          .getElementById("modeAvailBtn")
+          .classList.toggle("active", mode === "available");
+
         rollingBox.classList.toggle("hidden", mode !== "rolling");
         customBox.classList.toggle("hidden", mode !== "custom");
+        availableBox.classList.toggle("hidden", mode !== "available");
         updateStatusBar();
       }
 
@@ -1213,24 +1240,49 @@
         const refWindow = getReferenceWindow(baseDate);
         if (!refWindow) return emptyResult();
 
-        const referenceDates = enumerateDates(refWindow.start, refWindow.end);
-        const referenceDateSet = new Set(referenceDates);
+        let referenceDates = [];
+        let refFiltered = [];
 
-        const refFiltered = dailyRecords.filter(
-          (r) =>
-            referenceDateSet.has(r.Date) &&
-            r.DockingCount > 0 &&
-            r.Ratio !== null,
-        );
+        if (refWindow.mode === "available") {
+          const byTrain = new Map();
+          for (const row of dailyRecords) {
+            if (row.DateObj < baseDate && row.Ratio != null) {
+              if (!byTrain.has(row.Train)) byTrain.set(row.Train, []);
+              byTrain.get(row.Train).push(row);
+            }
+          }
+
+          refFiltered = [];
+          const referenceDateSet = new Set();
+          for (const rows of byTrain.values()) {
+            rows.sort((a, b) => b.DateObj - a.DateObj);
+            const picked = rows.slice(0, refWindow.count);
+            refFiltered.push(...picked);
+            for (const row of picked) referenceDateSet.add(row.Date);
+          }
+
+          refFiltered.sort((a, b) => a.DateObj - b.DateObj);
+          referenceDates = [...referenceDateSet].sort();
+        } else {
+          referenceDates = enumerateDates(refWindow.start, refWindow.end);
+          const referenceDateSet = new Set(referenceDates);
+          refFiltered = dailyRecords.filter(
+            (r) => referenceDateSet.has(r.Date) && r.Ratio != null,
+          );
+        }
 
         if (!refFiltered.length) {
           alert(
-            "No train-day records with docking count > 0 fall inside the selected reference period.",
+            "No train-day records with valid slip ratios fall inside the selected reference period.",
           );
           return emptyResult();
         }
 
-        const expectedDays = referenceDates.length;
+        const expectedDays =
+          refWindow.mode === "available"
+            ? refWindow.count
+            : referenceDates.length;
+
         const trainSeries = new Map();
         const trainCoverageDates = new Map();
 
@@ -1275,14 +1327,19 @@
             (dateStr) => !coveredDateSet.has(dateStr),
           );
           const coveredDays = coveredDateSet.size;
-          const insufficientData = missingDates.length > 0;
+          const insufficientData =
+            missingDates.length > 0 && coveredDays != expectedDays;
 
           const dataNote = insufficientData
-            ? `insufficient data (${coveredDays}/${expectedDays});\nmissing:\n${missingDates.join(", \n")}`
+            ? refWindow.mode === "available"
+              ? `Insufficient data (${coveredDays}/${expectedDays} points)`
+              : `Insufficient data (${coveredDays}/${expectedDays});\nMissing:\n${missingDates.join(", \n")}`
             : "";
 
           const shortDataNote = insufficientData
-            ? `insufficient data (${coveredDays}/${expectedDays});\nmissing:\n${missingDates.join(", \n")}`
+            ? refWindow.mode === "available"
+              ? `Insufficient data: (${coveredDays}/${expectedDays} points)`
+              : `Insufficient data (${coveredDays}/${expectedDays});\nMissing:\n${missingDates.join(", \n")}`
             : "";
 
           const predD = predictOneStepRatio(hist, d0);
@@ -1506,12 +1563,19 @@
           );
           const end = addDays(baseDate, -1);
           const start = addDays(baseDate, -n);
-          return { start, end };
+          return { start, end, mode };
+        }
+
+        if (mode === "available") {
+          const n = Math.max(
+            1,
+            Number(document.getElementById("availablePoints").value || 7),
+          );
+          return { count: n, mode };
         }
 
         const startStr = document.getElementById("startDate").value;
         const endStr = document.getElementById("endDate").value;
-
         if (!startStr || !endStr) {
           alert("Please select both start and end dates.");
           return null;
@@ -1519,13 +1583,12 @@
 
         const start = parseYMD(startStr);
         const end = parseYMD(endStr);
-
         if (!start || !end || start > end) {
           alert("Start date must be earlier than or equal to end date.");
           return null;
         }
 
-        const cappedEnd = end < baseDate ? end : addDays(baseDate, -1);
+        const cappedEnd = end >= baseDate ? addDays(baseDate, -1) : end;
         if (start > cappedEnd) {
           alert(
             "Custom reference period must contain at least one day before D.",
@@ -1533,12 +1596,17 @@
           return null;
         }
 
-        return { start, end: cappedEnd };
+        return { start, end: cappedEnd, mode };
       }
 
       function buildReferenceText(baseDate) {
         const window = getReferenceWindow(baseDate);
         if (!window) return "";
+
+        if (window.mode === "available") {
+          return `${window.count} previous available data points before ${formatDate(baseDate)}`;
+        }
+
         return `${formatDate(window.start)} to ${formatDate(window.end)}`;
       }
 
